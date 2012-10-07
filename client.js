@@ -37,21 +37,30 @@ function gotAllFragments() {
 // images, then fires a `done` callback.
 //
 function getAllFragments(done) {
-  getFragment(function (fragment) {
-    if (gotAllFragments()) {
-      done();
-    } else {
-      getAllFragments(done);
-    }
-  });
+  var endpoint = 0;
+
+  function _getAllFragments() {
+    getFragment(endpoint + 1, function (fragment) {
+      if (gotAllFragments()) {
+        done();
+      } else {
+        // Round-robin poll endpoints.
+        endpoint = (endpoint + 1) % 5;
+        _getAllFragments(done);
+      }
+    });
+  }
+
+  // Start the polling cycle.
+  _getAllFragments();
 }
 
 //
 // Issues a single request to a server and calls `done` when a previously
 // unseen fragment is encountered.
 //
-function getFragment(done) {
-  var request = http.get('http://localhost:8080');
+function getFragment(endpoint, done) {
+  var request = http.get('http://localhost:8080/endpoint' + endpoint);
   request.on('response', function (response) {
     // Collect all incoming data into a single big string.
     var body = '';
@@ -63,12 +72,12 @@ function getFragment(done) {
     response.on('end', function () {
       var fragment = JSON.parse(body);
 
-      // Mark fragment as received and return it, if it was new.
+      // If it'a new fragment, mark it as received and return it.
       if (markAsReceived(fragment)) {
         return done(fragment);
       }
-      // Otherwise, try again.
-      getFragment(done);
+      // Otherwise, indicate that no new fragment was received.
+      done(null);
     });
   });
 }
