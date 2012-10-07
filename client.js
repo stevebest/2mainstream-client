@@ -1,6 +1,13 @@
 var http = require('http');
 var fs   = require('fs');
 
+// Download statistics
+var stats = {
+  errors: 0,
+  bytesReceived: 0,
+  duplicates: 0
+}
+
 // Fragment availability map, which is just an `array[image_id][fragment_id]`
 // of fragment objects.
 var fragments = Array.apply(null, Array(1)).map(function () {
@@ -66,6 +73,7 @@ function getFragment(endpoint, done) {
     var body = '';
     response.on('data', function (chunk) {
       body += chunk;
+      stats.bytesReceived += chunk.length;
     });
 
     // Process the received data when the response is complete.
@@ -76,7 +84,9 @@ function getFragment(endpoint, done) {
       if (markAsReceived(fragment)) {
         return done(fragment);
       }
+
       // Otherwise, indicate that no new fragment was received.
+      stats.duplicates++;
       done(null);
     });
   });
@@ -112,8 +122,11 @@ function writeFragments(done) {
 // Start the stopwatch and go get 'em all
 var timeStart = Date.now();
 getAllFragments(function () {
-  console.log('Received all image fragments in %dms, writing files...', Date.now() - timeStart);
+  console.log('Received all image fragments, writing files...');
+  stats.timeTaken = Date.now() - timeStart;
+
   writeFragments(function () {
-    console.log('All done. Total time taken %dms', Date.now() - timeStart);
+    console.log('All done.');
+    console.log(require('util').inspect(stats));
   });
 });
