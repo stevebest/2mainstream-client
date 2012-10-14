@@ -71,13 +71,30 @@ function getFragment(endpoint, done) {
   request.on('response', function (response) {
     // Collect all incoming data into a single big string.
     var body = '';
+    var abort = false;
     response.on('data', function (chunk) {
+      // analyse 1st coming chunk
+      if(body.length == 0) {
+          var matchResult = chunk.toString().match(/{"image_id"\:(\d+),"fragment_id"\:(\d+),/i);
+
+          if(matchResult !== null) {
+              if(isReceived({ image_id:matchResult[1], fragment_id: matchResult[2]})) {
+                  stats.duplicates++;
+                  abort = true;
+                  request.abort();
+              }
+          } else {
+              console.log("Response's JSON format was changed.");
+          }
+      }
+
       body += chunk;
       stats.bytesReceived += chunk.length;
     });
 
     // Process the received data when the response is complete.
     response.on('end', function () {
+      if(abort) { return done(null); }
       var fragment = JSON.parse(body);
 
       // If it'a new fragment, mark it as received and return it.
