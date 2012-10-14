@@ -72,24 +72,32 @@ function getFragment(endpoint, done) {
     // Collect all incoming data into a single big string.
     var body = '';
     var abort = false;
+    var image_id;
+    var fragment_id;
+    var checked_for_duplicate = false;
+
     response.on('data', function (chunk) {
-      // analyse 1st coming chunk
-      if(body.length == 0) {
-          var matchResult = chunk.toString().match(/{"image_id"\:(\d+),"fragment_id"\:(\d+),/i);
-
-          if(matchResult !== null) {
-              if(isReceived({ image_id:matchResult[1], fragment_id: matchResult[2]})) {
-                  stats.duplicates++;
-                  abort = true;
-                  request.abort();
-              }
-          } else {
-              console.log("Response's JSON format was changed.");
-          }
-      }
-
       body += chunk;
       stats.bytesReceived += chunk.length;
+
+      var matchRes = body.toString().match(/\"image_id\":\s*(\d+)\s*[,\}]/i);
+      if(matchRes !== null) {
+        image_id = matchRes[1];
+      }
+      var matchRes = body.toString().match(/\"fragment_id\":\s*(\d+)\s*[,\}]/i);
+      if(matchRes !== null) {
+        fragment_id = matchRes[1];
+      }
+
+      if(fragment_id && image_id && !checked_for_duplicate) {
+        if(isReceived({ image_id:image_id, fragment_id: fragment_id})) {
+          stats.duplicates++;
+          abort = true;
+          request.abort();
+        } else {
+          checked_for_duplicate = true;
+        }
+      }
     });
 
     // Process the received data when the response is complete.
