@@ -10,7 +10,7 @@ var stats = {
 
 // Fragment availability map, which is just an `array[image_id][fragment_id]`
 // of fragment objects.
-var fragments = Array.apply(null, Array(1)).map(function () {
+var fragments = Array.apply(null, Array(5)).map(function () {
   return Array.apply(null, Array(100)).map(function () { return null; });
 });
 
