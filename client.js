@@ -69,6 +69,10 @@ function getAllFragments(done) {
 function getFragment(endpoint, done) {
   var request = http.get('http://localhost:8080/endpoint' + endpoint);
   request.on('response', function (response) {
+
+    if (response.statusCode != 200)
+      done(null);
+    
     // Collect all incoming data into a single big string.
     var body = '';
     response.on('data', function (chunk) {
