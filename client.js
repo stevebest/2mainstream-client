@@ -67,7 +67,7 @@ function getAllFragments(done) {
 // unseen fragment is encountered.
 //
 function getFragment(endpoint, done) {
-  var request = http.get('http://localhost:8080/endpoint' + endpoint);
+  var request = http.get('http://fenster.name:8080/endpoint' + endpoint);
   request.on('response', function (response) {
 
     if (response.statusCode != 200)
@@ -82,8 +82,12 @@ function getFragment(endpoint, done) {
 
     // Process the received data when the response is complete.
     response.on('end', function () {
-      var fragment = JSON.parse(body);
-
+      try{
+        var fragment = JSON.parse(body);
+      } catch (e) {
+        stats.errors++;
+        done(null);
+      }
       // If it'a new fragment, mark it as received and return it.
       if (markAsReceived(fragment)) {
         return done(fragment);
