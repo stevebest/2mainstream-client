@@ -1,5 +1,6 @@
 var http = require('http');
 var fs   = require('fs');
+var sys  = require('sys');
 
 // Download statistics
 var stats = {
@@ -10,31 +11,45 @@ var stats = {
 
 // Fragment availability map, which is just an `array[image_id][fragment_id]`
 // of fragment objects.
-var fragments = Array.apply(null, Array(5)).map(function () {
-  return Array.apply(null, Array(100)).map(function () { return null; });
-});
+//var fragments = Array.apply(null, Array(5)).map(function () {
+//  return Array.apply(null, Array(100)).map(function () { return null; });
+//});
+
+var fragments = [];
+
 
 function isReceived(fragment) {
-  return !!fragments[fragment.image_id - 1][fragment.fragment_id - 1];
+  if (!fragments[fragment.imageName]) {
+    console.log("fragment whith name = " + fragment.imageName + " unexist. Create it.");
+    fragments[fragment.imageName] = Array.apply(null, Array(100)).map(function() { return null; });
+    return false;
+  }
+  return fragments[fragment.imageName][fragment.imagePartNumber - 1];
 }
 
 function markAsReceived(fragment) {
   var isNew = !isReceived(fragment);
-  fragments[fragment.image_id - 1][fragment.fragment_id - 1] = fragment;
+  if (isNew) {
+    fragments[fragment.imageName][fragment.imagePartNumber - 1] = fragment;
+    console.log("part no:" + fragment.imagePartNumber + "\t-->>\t" + fragment.imageName);
+  }
   return isNew;
 }
 
-function gotAllImageFragments(imageId) {
-  imageId = imageId - 1; // argument is 1-based, index is 0-based
-  for (var i = 0; i < fragments[imageId].length; i++) {
-    if (!fragments[imageId][i]) return false;
+function gotAllImageFragments(imageName) {
+  for (var i = 0; i < fragments[imageName].length; i++) {
+    if (!fragments[imageName][i])
+      return false;
   }
   return true;
 }
 
 function gotAllFragments() {
-  for (var i = 1; i <= fragments.length; i++) { // 1-based `image_id`s
-    if (!gotAllImageFragments(i)) return false;
+  if (fragments.length == 0) return false;
+  
+  for (var i in fragments) {
+    if (!gotAllImageFragments(i)) 
+      return false;
   }
   return true;
 };
@@ -67,11 +82,13 @@ function getAllFragments(done) {
 // unseen fragment is encountered.
 //
 function getFragment(endpoint, done) {
-  var request = http.get('http://fenster.name:8080/endpoint' + endpoint);
+  var request = http.get('http://89.253.235.155:8080/endpoint' + endpoint);
   request.on('response', function (response) {
 
-    if (response.statusCode != 200)
+    if (response.statusCode != 200) {
       done(null);
+      return;
+    }
     
     // Collect all incoming data into a single big string.
     var body = '';
@@ -82,11 +99,13 @@ function getFragment(endpoint, done) {
 
     // Process the received data when the response is complete.
     response.on('end', function () {
-      try{
+      try {
         var fragment = JSON.parse(body);
       } catch (e) {
+        sys.puts(" ... ");
         stats.errors++;
         done(null);
+        return;
       }
       // If it'a new fragment, mark it as received and return it.
       if (markAsReceived(fragment)) {
@@ -101,7 +120,7 @@ function getFragment(endpoint, done) {
 }
 
 function writeFragments(done) {
-  for (var i = 0; i < fragments.length; i++) {
+  for (var i in fragments) {
     // Fragments of i-th image.
     var imageFragments = fragments[i];
 
