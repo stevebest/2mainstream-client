@@ -9,7 +9,6 @@ var stats = {
   parts: 0
 }
 
-
 var fragments = [];
 
 
@@ -27,6 +26,7 @@ function isReceived(chunk) {
   return fragments[name].data[number - 1];
 }
 
+
 function createImageFragment(name, size) {
   console.log("Create image with name = " + name);
   var image = {
@@ -39,6 +39,7 @@ function createImageFragment(name, size) {
   return image;
 }
 
+
 function markAsReceived(fragment) {
   var name = fragment.imageName;
   fragments[name].currentSize += fragment.sizeOfPartInBytes;
@@ -46,28 +47,33 @@ function markAsReceived(fragment) {
   fragments[name].data[fragment.imagePartNumber - 1] = fragment;
   stats.parts++;
   console.log(stats.parts + "\tpart no:" + fragment.imagePartNumber + "\t-->>\t" + fragment.imageName +
-    "\t| total: " + fragments[name].totalSize + "\t| current: " + fragments[name].currentSize);
+    "\t| total:" + fragments[name].totalSize + "\t| current:" + fragments[name].currentSize);
 }
 
-function gotAllImageFragments(part) {
-  if (part.totalSize <= part.currentSize) {
-    fragments[imageName].isSaved = writeFragment("./img.bmp", fragmens[imageName]);
-    console.log("try to save file = " + );
+
+function gotAllImageFragments(name, image) {
+  if (image.totalSize <= image.currentSize) {
+    //if (!image.isSaved) {
+    //  image.isSaved = writeFragment(name.toString(), images);
+    //}
     return true;
   }
   else
     return false;
 }
 
+
 function gotAllFragments() {
-  if (fragments.length == 0) return false;
+  //if (fragments.length == 0) return false;
   
   for (var i in fragments) {
-    if (!gotAllImageFragments(fragments[i])) 
+    if (!gotAllImageFragments(i, fragments[i])) {
       return false;
+    }
   }
   return true;
 };
+
 
 //
 // Repeatedly issues requests to a server until we have all fragments of all
@@ -92,6 +98,7 @@ function getAllFragments(done) {
   _getAllFragments();
 }
 
+
 //
 // Issues a single request to a server and calls `done` when a previously
 // unseen fragment is encountered.
@@ -112,7 +119,7 @@ function getFragment(endpoint, done) {
           } else {
             body += chunk;
             response.on('end', function() {
-            done(endReceiving(body));
+            return done(endReceiving(body));
           });
         }
         } else { 
@@ -121,7 +128,7 @@ function getFragment(endpoint, done) {
         }
       });
     } else {
-      console.log("Server error ...");
+      console.log("server returns an error ... " + response.statusCode);
       stats.errors++;
       done(null);
     }
@@ -131,8 +138,9 @@ function getFragment(endpoint, done) {
     console.log("http get error. " + err.message);
     stats.errors++;
     done(null);
-  })
+  });
 }
+
 
 function endReceiving(body) {
   try {
@@ -146,30 +154,31 @@ function endReceiving(body) {
   return fragment;
 }
 
-function writeFragment(name, element) {
-  console.log("Save image = " + name);
-  var fd = fs.openSync("./im_" + name, 'w');
-  var arr = element.data;
-  for (var i = 0; i< arr.length; i++) {
-    var buffer = new Buffer(arr[i].base64Data, 'base64');
-    var toWrite = buffer.length;
-    var offset = arr[i].partOffset;
-    fs.writeSync(fd, buffer, 0, toWrite, offset);
-  }
-  fs.closeSync(fd);
-  return true;
-}
+
+//function writeFragment(name, element) {
+//  console.log("Save image = " + name);
+//  var fd = fs.openSync("./" + name, 'w');
+//  var arr = element.data;
+//  for (var i = 0; i< arr.length; i++) {
+//    var buffer = new Buffer(arr[i].base64Data, 'base64');
+//    var toWrite = buffer.length;
+//    var offset = arr[i].partOffset;
+//    fs.writeSync(fd, buffer, 0, toWrite, offset);
+//  }
+//  fs.closeSync(fd);
+//  return true;
+//}
 
 
 function writeFragments(done) {
   for (var i in fragments) {
     // Fragments of i-th image.
-    var imageFragments = fragments[i];
+    var imageFragments = fragments[i].data;
 
-    var fd = fs.openSync(i, 'w');
+    var fd = fs.openSync("./" + i.toString(), 'w');
 
-    for (var j = 0; j < imageFragments.data.length; j++) {
-      var fragment = imageFragments.data[j];
+    for (var j = 0; j < imageFragments.length; j++) {
+      var fragment = imageFragments[j];
       var buffer = new Buffer(fragment.base64Data, 'base64');
 
       var toWrite = buffer.length;
