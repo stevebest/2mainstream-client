@@ -120,6 +120,12 @@ function getFragment(endpoint, done) {
       done(null);
     }
   });
+
+  request.on('error', function(err) {
+    console.log("http get error. " + err.message);
+    stats.errors++;
+    done(null);
+  })
 }
 
 function endReceiving(body) {
