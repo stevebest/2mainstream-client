@@ -15,16 +15,16 @@ var fragments = [];
 
 function isReceived(chunk) {
   var data = String(chunk);
-  var name = (data.match(/"imageName"\s*:\s*"(\w+\.\w+)"\s?,/) || []).pop();
+  var name = (data.match(/"imageName"\s*:\s*"(\w+\.?\w+)"\s?,/) || []).pop();
   var totalSize = (data.match(/"sizeOfImageInBytes"\s*:\s*(\d+)\s*[,}]/) || []).pop();
-  if (name == undefined || totalSize == undefined) 
-    return true;
+  // to avoid broken data
+  if (name == undefined || totalSize == undefined) return true;
   if (!fragments[name]) {
     fragments[name] = createImageFragment(name, totalSize);
     return false;
   }
   var number = (data.match(/"imagePartNumber"\s*:\s*(\d+)\s*[,}]/) || []).pop();  
-  return fragments[name].data[number];
+  return fragments[name].data[number - 1];
 }
 
 function createImageFragment(name, size) {
@@ -33,7 +33,8 @@ function createImageFragment(name, size) {
     totalSize: size,
     currentSize: 0,
     parts: 0,
-    data: Array.apply(null, Array(100)).map(function() { return null; })
+    data: Array.apply(null, Array(100)).map(function() { return null; }),
+    isSaved: false
   }
   return image;
 }
@@ -44,18 +45,16 @@ function markAsReceived(fragment) {
   fragments[name].parts++;
   fragments[name].data[fragment.imagePartNumber - 1] = fragment;
   stats.parts++;
-  console.log("part no:" + fragment.imagePartNumber + "\t-->>\t" + fragment.imageName +
-    "\t| total size:" + fragments[name].totalSize + "\t| current size:" + fragments[name].currentSize + 
-    "\t| total parts:" + stats.parts);
+  console.log(stats.parts + "\tpart no:" + fragment.imagePartNumber + "\t-->>\t" + fragment.imageName +
+    "\t| total: " + fragments[name].totalSize + "\t| current: " + fragments[name].currentSize);
 }
 
-function gotAllImageFragments(imageName) {
-  //for (var i = 0; i < fragments[imageName].length; i++) {
-  //  if (!fragments[imageName][i])
-  //    return false;
-  //}
-  if (fragments[imageName].totalSize == fragments[imageName].currentSize)
+function gotAllImageFragments(part) {
+  if (part.totalSize <= part.currentSize) {
+    fragments[imageName].isSaved = writeFragment("./img.bmp", fragmens[imageName]);
+    console.log("try to save file = " + );
     return true;
+  }
   else
     return false;
 }
@@ -64,7 +63,7 @@ function gotAllFragments() {
   if (fragments.length == 0) return false;
   
   for (var i in fragments) {
-    if (!gotAllImageFragments(i)) 
+    if (!gotAllImageFragments(fragments[i])) 
       return false;
   }
   return true;
@@ -146,6 +145,21 @@ function endReceiving(body) {
   markAsReceived(fragment);
   return fragment;
 }
+
+function writeFragment(name, element) {
+  console.log("Save image = " + name);
+  var fd = fs.openSync("./im_" + name, 'w');
+  var arr = element.data;
+  for (var i = 0; i< arr.length; i++) {
+    var buffer = new Buffer(arr[i].base64Data, 'base64');
+    var toWrite = buffer.length;
+    var offset = arr[i].partOffset;
+    fs.writeSync(fd, buffer, 0, toWrite, offset);
+  }
+  fs.closeSync(fd);
+  return true;
+}
+
 
 function writeFragments(done) {
   for (var i in fragments) {
