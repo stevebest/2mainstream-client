@@ -1,39 +1,36 @@
 var http = require('http');
 var fs   = require('fs');
-var sys  = require('sys');
 
 // Download statistics
 var stats = {
   errors: 0,
   bytesReceived: 0,
-  duplicates: 0
+  duplicates: 0,
+  parts: 0
 }
 
-// Fragment availability map, which is just an `array[image_id][fragment_id]`
-// of fragment objects.
-//var fragments = Array.apply(null, Array(5)).map(function () {
-//  return Array.apply(null, Array(100)).map(function () { return null; });
-//});
 
 var fragments = [];
 
 
-function isReceived(fragment) {
-  if (!fragments[fragment.imageName]) {
-    console.log("fragment whith name = " + fragment.imageName + " unexist. Create it.");
-    fragments[fragment.imageName] = Array.apply(null, Array(100)).map(function() { return null; });
+function isReceived(chunk) {
+  var data = String(chunk);
+  var name = (data.match(/"imageName"\s*:\s*"(\w+\.\w+)"\s?,/) || []).pop();
+  if (name == undefined) 
+    return true;
+  if (!fragments[name]) {
+    console.log("create fragment with name = " + name);
+    fragments[name] = Array.apply(null, Array(100)).map(function() { return null; });
     return false;
   }
-  return fragments[fragment.imageName][fragment.imagePartNumber - 1];
+  var number = (data.match(/"imagePartNumber"\s*:\s*(\d+)\s*[,}]/) || []).pop();  
+  return fragments[name][number];
 }
 
 function markAsReceived(fragment) {
-  var isNew = !isReceived(fragment);
-  if (isNew) {
-    fragments[fragment.imageName][fragment.imagePartNumber - 1] = fragment;
-    console.log("part no:" + fragment.imagePartNumber + "\t-->>\t" + fragment.imageName);
-  }
-  return isNew;
+  fragments[fragment.imageName][fragment.imagePartNumber - 1] = fragment;
+  stats.parts++;
+  console.log("part no:" + fragment.imagePartNumber + "\t-->>\t" + fragment.imageName + "\tTotal:" + stats.parts);
 }
 
 function gotAllImageFragments(imageName) {
@@ -85,38 +82,44 @@ function getFragment(endpoint, done) {
   var request = http.get('http://89.253.235.155:8080/endpoint' + endpoint);
   request.on('response', function (response) {
 
-    if (response.statusCode != 200) {
+    if (response.statusCode == 200) {    
+      // Collect all incoming data into a single big string.
+      var body = '';
+      response.on('data', function (chunk) {
+        if (body == '') {
+          if (isReceived(chunk)) {
+            response.destroy();
+            stats.duplicates++;
+            done(null);
+          } else {
+            body += chunk;
+            response.on('end', function() {
+            done(endReceiving(body));
+          });
+        }
+        } else { 
+          body += chunk;
+          stats.bytesReceived += chunk.length;
+        }
+      });
+    } else {
+      console.log("Server error ...");
+      stats.errors++;
       done(null);
-      return;
     }
-    
-    // Collect all incoming data into a single big string.
-    var body = '';
-    response.on('data', function (chunk) {
-      body += chunk;
-      stats.bytesReceived += chunk.length;
-    });
-
-    // Process the received data when the response is complete.
-    response.on('end', function () {
-      try {
-        var fragment = JSON.parse(body);
-      } catch (e) {
-        sys.puts(" ... ");
-        stats.errors++;
-        done(null);
-        return;
-      }
-      // If it'a new fragment, mark it as received and return it.
-      if (markAsReceived(fragment)) {
-        return done(fragment);
-      }
-
-      // Otherwise, indicate that no new fragment was received.
-      stats.duplicates++;
-      done(null);
-    });
   });
+}
+
+function endReceiving(body) {
+  try {
+    var fragment = JSON.parse(body);
+  } catch (e) {
+    console.log("parser error. Data = " + body);
+    stats.errors++;
+    return null;
+  }  
+  markAsReceived(fragment);
+  return fragment;
 }
 
 function writeFragments(done) {
