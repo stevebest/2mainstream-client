@@ -20,18 +20,22 @@ function isReceived(chunk) {
   if (name == undefined || totalSize == undefined) 
     return true;
   if (!fragments[name]) {
-    console.log("create image with name = " + name);
-    var image = {
-      totalSize: totalSize,
-      currentSize: 0,
-      parts: 0,
-      data: Array.apply(null, Array(100)).map(function() { return null; })
-    }
-    fragments[name] = image;
+    fragments[name] = createImageFragment(name, totalSize);
     return false;
   }
   var number = (data.match(/"imagePartNumber"\s*:\s*(\d+)\s*[,}]/) || []).pop();  
-  return fragments[name][number];
+  return fragments[name].data[number];
+}
+
+function createImageFragment(name, size) {
+  console.log("Create image with name = " + name);
+  var image = {
+    totalSize: size,
+    currentSize: 0,
+    parts: 0,
+    data: Array.apply(null, Array(100)).map(function() { return null; })
+  }
+  return image;
 }
 
 function markAsReceived(fragment) {
@@ -46,11 +50,14 @@ function markAsReceived(fragment) {
 }
 
 function gotAllImageFragments(imageName) {
-  for (var i = 0; i < fragments[imageName].length; i++) {
-    if (!fragments[imageName][i])
-      return false;
-  }
-  return true;
+  //for (var i = 0; i < fragments[imageName].length; i++) {
+  //  if (!fragments[imageName][i])
+  //    return false;
+  //}
+  if (fragments[imageName].totalSize == fragments[imageName].currentSize)
+    return true;
+  else
+    return false;
 }
 
 function gotAllFragments() {
