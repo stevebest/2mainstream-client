@@ -16,11 +16,18 @@ var fragments = [];
 function isReceived(chunk) {
   var data = String(chunk);
   var name = (data.match(/"imageName"\s*:\s*"(\w+\.\w+)"\s?,/) || []).pop();
-  if (name == undefined) 
+  var totalSize = (data.match(/"sizeOfImageInBytes"\s*:\s*(\d+)\s*[,}]/) || []).pop();
+  if (name == undefined || totalSize == undefined) 
     return true;
   if (!fragments[name]) {
-    console.log("create fragment with name = " + name);
-    fragments[name] = Array.apply(null, Array(100)).map(function() { return null; });
+    console.log("create image with name = " + name);
+    var image = {
+      totalSize: totalSize,
+      currentSize: 0,
+      parts: 0,
+      data: Array.apply(null, Array(100)).map(function() { return null; })
+    }
+    fragments[name] = image;
     return false;
   }
   var number = (data.match(/"imagePartNumber"\s*:\s*(\d+)\s*[,}]/) || []).pop();  
@@ -28,9 +35,14 @@ function isReceived(chunk) {
 }
 
 function markAsReceived(fragment) {
-  fragments[fragment.imageName][fragment.imagePartNumber - 1] = fragment;
+  var name = fragment.imageName;
+  fragments[name].currentSize += fragment.sizeOfPartInBytes;
+  fragments[name].parts++;
+  fragments[name].data[fragment.imagePartNumber - 1] = fragment;
   stats.parts++;
-  console.log("part no:" + fragment.imagePartNumber + "\t-->>\t" + fragment.imageName + "\tTotal:" + stats.parts);
+  console.log("part no:" + fragment.imagePartNumber + "\t-->>\t" + fragment.imageName +
+    "\t| total size:" + fragments[name].totalSize + "\t| current size:" + fragments[name].currentSize + 
+    "\t| total parts:" + stats.parts);
 }
 
 function gotAllImageFragments(imageName) {
@@ -127,11 +139,11 @@ function writeFragments(done) {
     // Fragments of i-th image.
     var imageFragments = fragments[i];
 
-    var fd = fs.openSync(imageFragments[0].image_name, 'w');
+    var fd = fs.openSync(i, 'w');
 
-    for (var j = 0; j < imageFragments.length; j++) {
-      var fragment = imageFragments[j];
-      var buffer = new Buffer(fragment.content, 'base64');
+    for (var j = 0; j < imageFragments.data.length; j++) {
+      var fragment = imageFragments.data[j];
+      var buffer = new Buffer(fragment.base64Data, 'base64');
 
       var toWrite = buffer.length;
       var offset = 0;
