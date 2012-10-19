@@ -72,37 +72,27 @@ function getFragment(endpoint, done) {
     // Collect all incoming data into a single big string.
     var body = '';
     var abort = false;
-    var image_id;
-    var fragment_id;
-    var checked_for_duplicate = false;
+    var image_id, fragment_id;
 
     response.on('data', function (chunk) {
       body += chunk;
       stats.bytesReceived += chunk.length;
 
-      var matchRes = body.toString().match(/\"image_id\":\s*(\d+)\s*[,\}]/i);
-      if(matchRes !== null) {
-        image_id = matchRes[1];
-      }
-      var matchRes = body.toString().match(/\"fragment_id\":\s*(\d+)\s*[,\}]/i);
-      if(matchRes !== null) {
-        fragment_id = matchRes[1];
-      }
+      image_id    = image_id    || (body.match(/"image_id"\s*:\s*(\d+)\s*[,}]/)    || []).pop();
+      fragment_id = fragment_id || (body.match(/"fragment_id"\s*:\s*(\d+)\s*[,}]/) || []).pop();
 
-      if(fragment_id && image_id && !checked_for_duplicate) {
-        if(isReceived({ image_id:image_id, fragment_id: fragment_id})) {
+      if (fragment_id && image_id) {
+        if (isReceived({ image_id: image_id, fragment_id: fragment_id})) {
           stats.duplicates++;
           abort = true;
           request.abort();
-        } else {
-          checked_for_duplicate = true;
         }
       }
     });
 
     // Process the received data when the response is complete.
     response.on('end', function () {
-      if(abort) { return done(null); }
+      if (abort) { return done(null); }
       var fragment = JSON.parse(body);
 
       // If it'a new fragment, mark it as received and return it.
