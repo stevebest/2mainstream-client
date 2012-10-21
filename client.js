@@ -48,6 +48,10 @@ function getAllFragments(done) {
 
   function _getAllFragments() {
     getFragment(endpoint + 1, function (fragment) {
+      if (fragment !== null && gotAllImageFragments(fragment.image_id)) {
+        writeImage(fragment.image_id);
+      }
+
       if (gotAllFragments()) {
         done();
       } else {
@@ -107,10 +111,9 @@ function getFragment(endpoint, done) {
   });
 }
 
-function writeFragments(done) {
-  for (var i = 0; i < fragments.length; i++) {
+function writeImage(image_id) {
     // Fragments of i-th image.
-    var imageFragments = fragments[i];
+    var imageFragments = fragments[image_id - 1];
 
     var fd = fs.openSync(imageFragments[0].image_name, 'w');
 
@@ -129,19 +132,12 @@ function writeFragments(done) {
     }
 
     fs.closeSync(fd);
-  }
-
-  done();
 }
 
 // Start the stopwatch and go get 'em all
 var timeStart = Date.now();
 getAllFragments(function () {
-  console.log('Received all image fragments, writing files...');
   stats.timeTaken = Date.now() - timeStart;
-
-  writeFragments(function () {
-    console.log('All done.');
-    console.log(require('util').inspect(stats));
-  });
+  console.log('All done.');
+  console.log(require('util').inspect(stats));
 });
