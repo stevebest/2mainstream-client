@@ -45,21 +45,26 @@ function gotAllFragments() {
 //
 function getAllFragments(done) {
   var endpoint = 0;
+  var queue = [];
 
   function _getAllFragments() {
-    getFragment(endpoint + 1, function (fragment) {
-      if (fragment !== null && gotAllImageFragments(fragment.image_id)) {
-        writeImage(fragment.image_id);
-      }
-
-      if (gotAllFragments()) {
-        done();
-      } else {
-        // Round-robin poll endpoints.
+    if (gotAllFragments()) {
+      done();
+    } else {
+      if (queue.length < 5) {
+        queue.push(endpoint);
+        getFragment(endpoint + 1, function (fragment) {
+            if (fragment !== null && gotAllImageFragments(fragment.image_id)) {
+                writeImage(fragment.image_id);
+            }
+            queue.pop();
+        });
         endpoint = (endpoint + 1) % 5;
-        _getAllFragments(done);
+        _getAllFragments();
+      } else {
+        setTimeout(function(){ _getAllFragments(); }, 5);
       }
-    });
+    }
   }
 
   // Start the polling cycle.
