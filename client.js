@@ -83,6 +83,12 @@ function getFragment(endpoint, done) {
     var abort = false;
     var image_id, fragment_id;
 
+    if (response.statusCode !== 200) {
+      stats.errors++;
+      abort = true;
+      request.abort();
+    }
+
     response.on('data', function (chunk) {
       body += chunk;
       stats.bytesReceived += chunk.length;
