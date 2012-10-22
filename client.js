@@ -45,17 +45,26 @@ function gotAllFragments() {
 //
 function getAllFragments(done) {
   var endpoint = 0;
+  var queue = [];
 
   function _getAllFragments() {
-    getFragment(endpoint + 1, function (fragment) {
-      if (gotAllFragments()) {
-        done();
-      } else {
-        // Round-robin poll endpoints.
+    if (gotAllFragments()) {
+      done();
+    } else {
+      if (queue.length < 5) {
+        queue.push(endpoint);
+        getFragment(endpoint + 1, function (fragment) {
+            if (fragment !== null && gotAllImageFragments(fragment.image_id)) {
+                writeImage(fragment.image_id);
+            }
+            queue.pop();
+        });
         endpoint = (endpoint + 1) % 5;
-        _getAllFragments(done);
+        _getAllFragments();
+      } else {
+        setTimeout(function(){ _getAllFragments(); }, 5);
       }
-    });
+    }
   }
 
   // Start the polling cycle.
@@ -68,11 +77,30 @@ function getAllFragments(done) {
 //
 function getFragment(endpoint, done) {
   var request = http.get('http://localhost:8080/endpoint' + endpoint);
+
+  request.on('socket', function (socket) {
+    socket.setTimeout(500);
+    socket.on('timeout', function() {
+      request.abort();
+    });
+  });
+
+  request.on('error', function(e) {
+    stats.errors++;
+    done(null);
+  });
+
   request.on('response', function (response) {
     // Collect all incoming data into a single big string.
     var body = '';
     var abort = false;
     var image_id, fragment_id;
+
+    if (response.statusCode !== 200) {
+      stats.errors++;
+      abort = true;
+      request.abort();
+    }
 
     response.on('data', function (chunk) {
       body += chunk;
@@ -93,24 +121,28 @@ function getFragment(endpoint, done) {
     // Process the received data when the response is complete.
     response.on('end', function () {
       if (abort) { return done(null); }
-      var fragment = JSON.parse(body);
 
-      // If it'a new fragment, mark it as received and return it.
-      if (markAsReceived(fragment)) {
-        return done(fragment);
+      try {
+        var fragment = JSON.parse(body);
+        // If it'a new fragment, mark it as received and return it.
+        if (markAsReceived(fragment)) {
+          return done(fragment);
+        }
+
+        // Otherwise, indicate that no new fragment was received.
+        stats.duplicates++;
+
+      } catch (e) {
+        stats.errors++;
       }
-
-      // Otherwise, indicate that no new fragment was received.
-      stats.duplicates++;
       done(null);
     });
   });
 }
 
-function writeFragments(done) {
-  for (var i = 0; i < fragments.length; i++) {
+function writeImage(image_id) {
     // Fragments of i-th image.
-    var imageFragments = fragments[i];
+    var imageFragments = fragments[image_id - 1];
 
     var fd = fs.openSync(imageFragments[0].image_name, 'w');
 
@@ -129,19 +161,12 @@ function writeFragments(done) {
     }
 
     fs.closeSync(fd);
-  }
-
-  done();
 }
 
 // Start the stopwatch and go get 'em all
 var timeStart = Date.now();
 getAllFragments(function () {
-  console.log('Received all image fragments, writing files...');
   stats.timeTaken = Date.now() - timeStart;
-
-  writeFragments(function () {
-    console.log('All done.');
-    console.log(require('util').inspect(stats));
-  });
+  console.log('All done.');
+  console.log(require('util').inspect(stats));
 });

@@ -4,3 +4,4 @@
 *.jpg
 *.png
 node_modules/
+.idea/*
