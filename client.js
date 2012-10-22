@@ -121,15 +121,20 @@ function getFragment(endpoint, done) {
     // Process the received data when the response is complete.
     response.on('end', function () {
       if (abort) { return done(null); }
-      var fragment = JSON.parse(body);
 
-      // If it'a new fragment, mark it as received and return it.
-      if (markAsReceived(fragment)) {
-        return done(fragment);
+      try {
+        var fragment = JSON.parse(body);
+        // If it'a new fragment, mark it as received and return it.
+        if (markAsReceived(fragment)) {
+          return done(fragment);
+        }
+
+        // Otherwise, indicate that no new fragment was received.
+        stats.duplicates++;
+
+      } catch (e) {
+        stats.errors++;
       }
-
-      // Otherwise, indicate that no new fragment was received.
-      stats.duplicates++;
       done(null);
     });
   });
