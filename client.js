@@ -77,6 +77,19 @@ function getAllFragments(done) {
 //
 function getFragment(endpoint, done) {
   var request = http.get('http://localhost:8080/endpoint' + endpoint);
+
+  request.on('socket', function (socket) {
+    socket.setTimeout(500);
+    socket.on('timeout', function() {
+      request.abort();
+    });
+  });
+
+  request.on('error', function(e) {
+    stats.errors++;
+    done(null);
+  });
+
   request.on('response', function (response) {
     // Collect all incoming data into a single big string.
     var body = '';
